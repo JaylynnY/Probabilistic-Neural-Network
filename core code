@@ -1,0 +1,98 @@
+import numpy as np
+import math
+import copy
+import pandas as pd
+import time
+from sklearn.model_selection import train_test_split
+
+def distance(X,Y):
+    '''
+    计算两个样本之间的距离
+    '''
+    return np.sum(np.square(X-Y)) #square:计算元素平方
+
+def distance_mat(Nor_trainX,Nor_testX):
+    '''
+    计算待测样本与所有训练样本的欧式距离
+    input:mat
+    output:mat距离矩阵
+    '''
+    m,n = np.shape(Nor_trainX)
+    p = np.shape(Nor_testX)[0] #测试集的个数
+    eucD = np.mat(np.zeros((p,m)))
+    for i in range(p):
+        for j in range(m):
+            eucD[i,j] = distance(Nor_testX.iloc[i,:],Nor_trainX.iloc[j,:])
+    return eucD
+
+def Gauss(eucD,sigma):
+    '''
+    测试样本与训练样本的距离矩阵对应的高斯矩阵
+    参数：sigma - gauss函数标准差
+    input:gauss矩阵
+    '''
+    m,n = np.shape(eucD)
+    Gauss = np.mat(np.zeros((m,n)))
+    for i in range(m):
+        for j in range(n):
+            Gauss[i,j] = math.exp(-eucD[i,j]/(2*(sigma**2)))
+    return Gauss
+
+def Prob_mat(Gauss_mat,labelX):
+    '''
+    测试样本属于各类的概率矩阵
+    input:labelX - 训练样本标签（list）
+    output:Prob_mat - 测试样本属于各类的概率矩阵
+            label_class - 类别种类列表(list)
+    '''
+    #找出所有的标签类别
+    label_class = []
+    for i in range(len(labelX)):
+        if labelX[i] not in label_class:
+            label_class.append(labelX[i])
+            
+    n_class = len(label_class) #标签总数 n_c
+    #求概率和矩阵
+    p,m = np.shape(Gauss_mat)
+    Prob = np.mat(np.zeros((p,n_class)))
+    #p - 测试集；m - 训练集；s - 标签
+    for i in range(p):
+        for j in range(m):
+            for s in range(n_class):
+                if labelX[j] == label_class[s]:
+                    Prob[i,s] += Gauss_mat[i,j]
+    Prob_mat = copy.deepcopy(Prob)
+    Prob_mat = Prob_mat/np.sum(Prob,axis = 1)#某值/行总和 = 属于该类的概率
+    return Prob_mat,label_class
+
+def class_results(Prob,label_class):
+    '''
+    分类结果
+    input:
+        Prob - 概率矩阵
+        label_class - 类别种类列表
+    output:
+        results - 测试样本分类结果(list)
+    '''
+    arg_prob = np.argmax(Prob,axis = 1)
+    results = []
+    for i in range(len(arg_prob)):
+        results.append(label_class[arg_prob[i,0]])
+    return results
+
+def fit(train_data,test_data,sigma):
+    '''
+    input:
+        train_data/test_data - df
+    '''
+    start = time.clock()
+    Nor_trainX = train_data.iloc[:,:9]
+    Nor_testX = test_data.iloc[:,:9]
+    labelX = train_data['故障类型'].tolist()
+    eucD = distance_mat(Nor_trainX,Nor_testX)
+    Gauss_mat = Gauss(eucD,sigma)
+    Prob,label_class = Prob_mat(Gauss_mat,labelX)
+    predict_results = class_results(Prob,label_class)
+    end = time.clock()
+    T = float(end-start)
+    return predict_results,T
